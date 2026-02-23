@@ -39,6 +39,11 @@ impl AttractorConfig {
     pub fn num_particles(&self) -> usize { self.num_particles }
 }
 
+#[wasm_bindgen]
+pub fn get_memory() -> JsValue {
+    wasm_bindgen::memory()
+}
+
 // ---------------------------------------------
 // PyO3 Integration for Offline Parameter Search
 // ---------------------------------------------
