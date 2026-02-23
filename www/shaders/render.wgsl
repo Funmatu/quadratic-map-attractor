@@ -28,13 +28,19 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     let phase_U = atan2(U.y, U.x);
     let phase_L = atan2(L.y, L.x);
     
-    // 偏角の干渉パターンをRGBにマッピング (0.0 ~ 1.0 に正規化)
-    let r = 0.5 + 0.5 * sin(phase_U);
-    let g = 0.5 + 0.5 * sin(phase_L);
-    let b = 0.5 + 0.5 * cos(phase_U - phase_L);
+    // 偏角の干渉パターンをベース色に
+    var r = 0.5 + 0.5 * sin(phase_U);
+    var g = 0.5 + 0.5 * sin(phase_L);
+    var b = 0.5 + 0.5 * cos(phase_U - phase_L);
     
-    // 加算合成のためアルファ値は低く設定
-    out.color = vec4<f32>(r, g, b, 0.1); 
+    // 速度に基づく明度（躍動感）の付与
+    let velocity = state.pad.x;
+    let brightness = clamp(velocity * 8.0, 0.3, 2.0);
+    
+    // 加算合成のため、基本アルファ値は低く設定しつつ速度で強調
+    let alpha = clamp(0.02 + velocity * 2.0, 0.02, 0.25);
+    
+    out.color = vec4<f32>(r * brightness, g * brightness, b * brightness, alpha); 
     return out;
 }
 
