@@ -1,0 +1,30 @@
+feat(core): implement end-to-end quadratic map attractor dual-runtime system
+
+【Work Completed】
+Phase 1: Repo Setup & WebGPU Initialization
+- Initialized Rust `wasm-pack` project structure.
+- Developed `AttractorConfig` struct with 8-f32 alignment (Rust) for complex coupled differential variables.
+- Configured foundational `index.html` UI and `index.js` for WebGPU device acquisition.
+
+Phase 2: WASM-GPU Data Pipeline
+- Mapped WASM linear memory into zero-copy JavaScript `Float32Array` views.
+- Wired memory views to WebGPU `StorageBuffer` transfers (`writeBuffer`).
+- Authored initial point-list based `render.wgsl` to verify the rendering pipeline.
+
+Phase 3: Complex Coupled Recursive Dynamics
+- Authored `compute.wgsl` executing concurrent non-linear recursive integration.
+- Configured dynamic uniform buffers for scalar coupling `k` parameter updates via UI sliders.
+- Assembled asynchronous logic in JS (`requestAnimationFrame`) for constant buffer dispatches.
+- Established divergence policies acting as Poincaré section resets mapped directly on the GPU shader.
+
+Phase 4: Topology Visualization & Deployment
+- Overhauled `render.wgsl` mapping angular phases via `atan2` into vivid RGB color spaces.
+- Implemented `src-alpha`/`one` WebGPU Additive Blending configurations.
+- Integrated Python `PyO3` extensions into `src/lib.rs` for offline analytical processing.
+- Bootstrapped `explore.py` to recursively evaluate systems defining the chaos edge Lyapunov-style metrics.
+- Authored `.github/workflows/deploy.yml` orchestrating automated `wasm-pack` build and Git Pages deployments.
+
+【Remaining Tasks & Known Issues】
+- Rust codebase emits minor `snake_case` compilation warnings for variables (e.g. `norm_I`, `norm_U`).
+- Further fine-tuning of chaos-edge mathematical behaviors may be required based on extensive Python runs.
+- Consider exploring interactive canvas features (zoom/pan) for better mathematical investigation.

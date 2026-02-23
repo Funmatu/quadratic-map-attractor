@@ -1,0 +1,17 @@
+[package]
+name = "quadratic_map_attractor"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "quadratic_map_attractor"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+js-sys = "0.3.61"
+rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }

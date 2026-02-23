@@ -1,0 +1,26 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node/Webpack
+node_modules/
+dist/
+pkg/
+www/package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
