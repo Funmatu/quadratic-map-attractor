@@ -53,23 +53,29 @@ async function init() {
 
     // --- Phase 2 / Phase 3 Data Pipeline & Buffers ---
 
-    // Create Float32Array views from WASM memory (via explicit getter to avoid bundler import issues)
-    const memory = wasm.get_memory();
-    const statesArray = new Float32Array(memory.buffer, config.states_ptr(), numParticles * 8);
-    const constantsArray = new Float32Array(memory.buffer, config.constants_ptr(), numParticles * 8);
+    // Helper functions to get fresh Float32Array views (robust against WASM memory.grow detached buffers)
+    function getStatesArray() {
+        return new Float32Array(wasm.get_memory().buffer, config.states_ptr(), numParticles * 8);
+    }
+    function getConstantsArray() {
+        return new Float32Array(wasm.get_memory().buffer, config.constants_ptr(), numParticles * 8);
+    }
+
+    const initialStatesArray = getStatesArray();
+    const initialConstantsArray = getConstantsArray();
 
     // Create buffers
     const stateBuffer = device.createBuffer({
-        size: statesArray.byteLength,
+        size: initialStatesArray.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(stateBuffer, 0, statesArray);
+    device.queue.writeBuffer(stateBuffer, 0, initialStatesArray);
 
     const constantsBuffer = device.createBuffer({
-        size: constantsArray.byteLength,
+        size: initialConstantsArray.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(constantsBuffer, 0, constantsArray);
+    device.queue.writeBuffer(constantsBuffer, 0, initialConstantsArray);
 
     // Uniform buffer (vec4<f32>: k, escape_radius, padding, padding)
     const uniformBuffer = device.createBuffer({
