@@ -1,4 +1,5 @@
 import * as wasm from "quadratic-map-attractor";
+import { memory } from "quadratic-map-attractor/quadratic_map_attractor_bg.wasm";
 
 async function init() {
     console.log("Initializing WASM Core...");
@@ -54,8 +55,8 @@ async function init() {
     // --- Phase 2 / Phase 3 Data Pipeline & Buffers ---
 
     // Create Float32Array views from WASM memory
-    const statesArray = new Float32Array(wasm.memory.buffer, config.states_ptr(), numParticles * 8);
-    const constantsArray = new Float32Array(wasm.memory.buffer, config.constants_ptr(), numParticles * 8);
+    const statesArray = new Float32Array(memory.buffer, config.states_ptr(), numParticles * 8);
+    const constantsArray = new Float32Array(memory.buffer, config.constants_ptr(), numParticles * 8);
 
     // Create buffers
     const stateBuffer = device.createBuffer({
