@@ -6,7 +6,6 @@ target/
 node_modules/
 dist/
 pkg/
-www/package-lock.json
 
 # Python
 __pycache__/
