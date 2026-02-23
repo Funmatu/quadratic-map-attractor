@@ -87,12 +87,13 @@ fn evaluate_chaos_edge(k: f32, escape_radius: f32, steps: usize) -> PyResult<f32
             let cl_x = constants[idx+4];
             let cl_y = constants[idx+5];
 
+            let i_sqr = complex_sqr(I);
             let u_sqr = complex_sqr(U);
             let l_sqr = complex_sqr(L);
 
             let next_I = complex_mul((k, 0.0), complex_mul(I, (u_sqr.0 - l_sqr.0, u_sqr.1 - l_sqr.1)));
-            let next_U = complex_mul((k, 0.0), complex_mul(U, (I.0 - l_sqr.0, I.1 - l_sqr.1)));
-            let next_L = complex_mul((k, 0.0), complex_mul(L, (u_sqr.0 - I.0, u_sqr.1 - I.1)));
+            let next_U = complex_mul((k, 0.0), complex_mul(U, (i_sqr.0 - l_sqr.0, i_sqr.1 - l_sqr.1)));
+            let next_L = complex_mul((k, 0.0), complex_mul(L, (u_sqr.0 - i_sqr.0, u_sqr.1 - i_sqr.1)));
             
             states[idx] = next_I.0 + cx; states[idx+1] = next_I.1 + cy;
             states[idx+2] = next_U.0 + cu_x; states[idx+3] = next_U.1 + cu_y;

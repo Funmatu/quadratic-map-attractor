@@ -26,13 +26,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let k = global_params.x; 
     let escape_radius = global_params.y;
 
+    let I_sqr = complex_sqr(s.I);
     let U_sqr = complex_sqr(s.U);
     let L_sqr = complex_sqr(s.L);
     
     // 力学系の漸化式評価
     var next_I = complex_mul(vec2<f32>(k, 0.0), complex_mul(s.I, U_sqr - L_sqr)) + c.I;
-    var next_U = complex_mul(vec2<f32>(k, 0.0), complex_mul(s.U, s.I - L_sqr)) + c.U; 
-    var next_L = complex_mul(vec2<f32>(k, 0.0), complex_mul(s.L, U_sqr - s.I)) + c.L;
+    var next_U = complex_mul(vec2<f32>(k, 0.0), complex_mul(s.U, I_sqr - L_sqr)) + c.U; 
+    var next_L = complex_mul(vec2<f32>(k, 0.0), complex_mul(s.L, U_sqr - I_sqr)) + c.L;
 
     // 発散の検出とリセット (ノルムが閾値を超えた場合、原点付近に戻す)
     let max_norm = max(length(next_I), max(length(next_U), length(next_L)));
