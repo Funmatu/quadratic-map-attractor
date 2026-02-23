@@ -45,6 +45,14 @@ async function init() {
         kVal.innerText = kValue.toFixed(2);
     });
 
+    const nSlider = document.getElementById("n_slider");
+    const nVal = document.getElementById("n_val");
+    let stepsPerFrame = parseInt(nSlider.value);
+    nSlider.addEventListener("input", (e) => {
+        stepsPerFrame = parseInt(e.target.value);
+        nVal.innerText = stepsPerFrame;
+    });
+
     // Handle Window Resize
     window.addEventListener("resize", () => {
         canvas.width = window.innerWidth;
@@ -150,12 +158,14 @@ async function init() {
 
         const commandEncoder = device.createCommandEncoder();
 
-        // 1. Compute Pass
-        const computePass = commandEncoder.beginComputePass();
-        computePass.setPipeline(computePipeline);
-        computePass.setBindGroup(0, computeBindGroup);
-        computePass.dispatchWorkgroups(workgroupCount);
-        computePass.end();
+        // 1. Compute Pass (N times for fast-forwarding time evolution)
+        for (let i = 0; i < stepsPerFrame; i++) {
+            const computePass = commandEncoder.beginComputePass();
+            computePass.setPipeline(computePipeline);
+            computePass.setBindGroup(0, computeBindGroup);
+            computePass.dispatchWorkgroups(workgroupCount);
+            computePass.end();
+        }
 
         // 2. Render Pass
         const renderPass = commandEncoder.beginRenderPass({

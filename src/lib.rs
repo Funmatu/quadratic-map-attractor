@@ -58,6 +58,16 @@ fn complex_sqr(a: (f32, f32)) -> (f32, f32) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn complex_mul_f64(a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+    (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn complex_sqr_f64(a: (f64, f64)) -> (f64, f64) {
+    (a.0 * a.0 - a.1 * a.1, 2.0 * a.0 * a.1)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[pyfunction]
 fn evaluate_chaos_edge(k: f32, escape_radius: f32, steps: usize) -> PyResult<f32> {
     let num_particles = 10000;
@@ -120,8 +130,81 @@ fn evaluate_chaos_edge(k: f32, escape_radius: f32, steps: usize) -> PyResult<f32
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[pyfunction]
+fn evaluate_divergence_f32_vs_f64(k: f64, steps: usize) -> PyResult<Vec<f64>> {
+    let mut rng = rand::thread_rng();
+    
+    // Generate identical initial conditions
+    let initial_i_x: f32 = rng.gen_range(-0.01..0.01);
+    let initial_i_y: f32 = rng.gen_range(-0.01..0.01);
+    let initial_u_x: f32 = rng.gen_range(-0.01..0.01);
+    let initial_u_y: f32 = rng.gen_range(-0.01..0.01);
+    let initial_l_x: f32 = rng.gen_range(-0.01..0.01);
+    let initial_l_y: f32 = rng.gen_range(-0.01..0.01);
+
+    let cx_val: f32 = rng.gen_range(-2.0..2.0);
+    let cy_val: f32 = rng.gen_range(-2.0..2.0);
+    let cx = cx_val; let cy = cy_val;
+    let cu_x = cx * 1.05; let cu_y = cy * 0.95;
+    let cl_x = cx * 0.95; let cl_y = cy * 1.05;
+
+    let mut i_32 = (initial_i_x, initial_i_y);
+    let mut u_32 = (initial_u_x, initial_u_y);
+    let mut l_32 = (initial_l_x, initial_l_y);
+    
+    let mut i_64 = (initial_i_x as f64, initial_i_y as f64);
+    let mut u_64 = (initial_u_x as f64, initial_u_y as f64);
+    let mut l_64 = (initial_l_x as f64, initial_l_y as f64);
+    
+    let k_32 = k as f32;
+
+    let mut divergences = Vec::with_capacity(steps);
+
+    for _ in 0..steps {
+        // --- f32 iteration --- //
+        let i_sqr_32 = complex_sqr(i_32);
+        let u_sqr_32 = complex_sqr(u_32);
+        let l_sqr_32 = complex_sqr(l_32);
+
+        let next_i_32 = complex_mul((k_32, 0.0), complex_mul(i_32, (u_sqr_32.0 - l_sqr_32.0, u_sqr_32.1 - l_sqr_32.1)));
+        let next_u_32 = complex_mul((k_32, 0.0), complex_mul(u_32, (i_sqr_32.0 - l_sqr_32.0, i_sqr_32.1 - l_sqr_32.1)));
+        let next_l_32 = complex_mul((k_32, 0.0), complex_mul(l_32, (u_sqr_32.0 - i_sqr_32.0, u_sqr_32.1 - i_sqr_32.0)));
+        
+        i_32 = (next_i_32.0 + cx, next_i_32.1 + cy);
+        u_32 = (next_u_32.0 + cu_x, next_u_32.1 + cu_y);
+        l_32 = (next_l_32.0 + cl_x, next_l_32.1 + cl_y);
+
+        // --- f64 iteration --- //
+        let i_sqr_64 = complex_sqr_f64(i_64);
+        let u_sqr_64 = complex_sqr_f64(u_64);
+        let l_sqr_64 = complex_sqr_f64(l_64);
+
+        let next_i_64 = complex_mul_f64((k, 0.0), complex_mul_f64(i_64, (u_sqr_64.0 - l_sqr_64.0, u_sqr_64.1 - l_sqr_64.1)));
+        let next_u_64 = complex_mul_f64((k, 0.0), complex_mul_f64(u_64, (i_sqr_64.0 - l_sqr_64.0, i_sqr_64.1 - l_sqr_64.1)));
+        let next_l_64 = complex_mul_f64((k, 0.0), complex_mul_f64(l_64, (u_sqr_64.0 - i_sqr_64.0, u_sqr_64.1 - i_sqr_64.0)));
+        
+        i_64 = (next_i_64.0 + cx as f64, next_i_64.1 + cy as f64);
+        u_64 = (next_u_64.0 + cu_x as f64, next_u_64.1 + cu_y as f64);
+        l_64 = (next_l_64.0 + cl_x as f64, next_l_64.1 + cl_y as f64);
+
+        // Calculate full 6D Euclidean distance and record
+        let div_i = (i_64.0 - i_32.0 as f64).powi(2) + (i_64.1 - i_32.1 as f64).powi(2);
+        let div_u = (u_64.0 - u_32.0 as f64).powi(2) + (u_64.1 - u_32.1 as f64).powi(2);
+        let div_l = (l_64.0 - l_32.0 as f64).powi(2) + (l_64.1 - l_32.1 as f64).powi(2);
+        let distance: f64 = (div_i + div_u + div_l).sqrt();
+        divergences.push(distance);
+        
+        // Stop evaluating if it already completely blew up past float capacities
+        if distance > 1000.0 { break; }
+    }
+    
+    Ok(divergences)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[pymodule]
 fn quadratic_map_attractor(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_chaos_edge, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_divergence_f32_vs_f64, m)?)?;
     Ok(())
 }

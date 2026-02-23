@@ -53,7 +53,8 @@ $$L_{n+1} = k \cdot L_n (U_n^2 - I_n^2) + C_L$$
   - `www/index.js` において、`navigator.gpu.requestAdapter()` を用いてWebGPUコンテキストを初期化します。
   - WASMから取得したポインタ（`states_ptr`, `constants_ptr`）を基に、JavaScript側で `Float32Array` ビューを作成します。
   - WebGPUの `StorageBuffer` を作成し、WASMの線形メモリ上のデータを `queue.writeBuffer` を用いて、GPUのVRAMへ無駄なコピーを発生させずに転送します。
-  - 以降はJavaScriptの介在を最小化し、`requestAnimationFrame` を用いて、Compute Pipeline（計算）と Render Pipeline（描画）を毎フレーム連続してGPUへディスパッチし続けます。
+  - 時間発展のスケールを自在に操作するため、1回の Render Pass（画面描画）に先立ち、対象フレームの Compute Pass（計算）を $N$ 回バッチ実行（`Steps per Frame`）する制御構造を実装しています。これによりモニタのリフレッシュレートに縛られず、数万ステップ先の未来のアトラクタ形態も即座に観測可能です。
+  - `requestAnimationFrame` を用いて、これら Compute/Render のキュー発行を毎フレーム連続してGPUへディスパッチし続けます。
 
 ### 2-3. Rendering Engine (WebGPU / WGSL)
 * **Compute Pipeline (`www/shaders/compute.wgsl`) - 動的更新:**
@@ -68,14 +69,22 @@ $$L_{n+1} = k \cdot L_n (U_n^2 - I_n^2) + C_L$$
 
 ---
 
-## 3. PythonPyO3によるオフラインパラメータ探索
+## 3. Python(PyO3)によるオフライン探索・厳密性評価
 
-ブラウザ上の無数のパラメータを手動で調整するのは非効率であるため、Rust側の計算ロジックをWASMだけでなくネイティブラブラリ(`.so`/`.dll`)としてコンパイルし、Pythonから呼び出せるようにしています。
+ブラウザ上の演算（WebGPU/WASM）は、並列性と視覚的な全体像把握には極めて優れますが、GPUの制約上単精度浮動小数点(`f32`)に依存するため、非線形力学系の初期値鋭敏性によって累積する丸め誤差が増幅し、最終的に「偽の周期軌道（Floating-point attractor）」にトラップされるという回避不能な課題があります。
+この数学的な限界を補完するため、RustコアロジックをネイティブライブラリとしてPythonに公開し、探索と評価の分離を図っています。
 
+### 3-1. カオスエッジパラメータ自動探索 (`explore.py`)
 * **仕様:**
   - `Cargo.toml` において `pyo3` 拡張モジュールを有効化し、`cfg(not(target_arch = "wasm32"))` を指定して、Python実行用の関数 `evaluate_chaos_edge` をエクスポートしています。
-  - Pythonスクリプト `explore.py` は、Numpy等を利用して結合強度 $k$ などのパラメータ空間をスキャンし、発散せずかつ変化を続ける（リアプノフ指数に近似した）「カオス・エッジ」を自動探索します。
-  - これにより見出された最適パラメータ（例: $k = 0.41$）が、HTML UIのデフォルト値としてハードコードされています。
+  - Pythonスクリプト `explore.py` は結合強度 $k$ のパラメータ空間をスキャンし、発散せずかつ変化を続ける（リアプノフ指数に近似した）「カオス・エッジ」を多角的に自動探索します。
+  - これにより見出された最適パラメータ（例: $k = 0.41$）が、UIのデフォルト値として適用されています。
+
+### 3-2. f32 vs f64 ダイバージェンス評価 (`evaluate_divergence.py`)
+* **仕様:**
+  - WebGPU実装(`f32`)と、厳密な数学的軌道(`f64`)との乖離をテスト・評価するための比較検証機構を用意しています。
+  - Rustの `evaluate_divergence_f32_vs_f64` において、同一の初期値から `f32` および `f64` 双方のデータ型で当複素力学系を並行して反復演算し、6次元位相空間上における各ステップのユークリッド距離の累積誤差を計測します。
+  - Pythonスクリプト `evaluate_divergence.py` を実行することで、カオス力学ならではの誤差の非線形増幅曲線が `divergence_plot.png` として出力され、数値計算上の妥当性の限界（リアプノフ時間）を証明します。
 
 ---
 
@@ -95,7 +104,8 @@ quadratic-map-attractor/
 │       ├── compute.wgsl   # WGSL: 複素力学系の漸化式評価ロジック・並列演算
 │       └── render.wgsl    # WGSL: 6次元->2D射影、位相反干渉カラーマッピング、加算合成
 ├── pyproject.toml         # Python (PyO3) / Maturin ビルドメタデータ
-├── explore.py             # Pythonによるカオスエッジ並列探索・最適パラメータ検知スクリプト
+├── explore.py             # Pythonによるカオスエッジ並列探索スクリプト
+├── evaluate_divergence.py # Pythonによる f32 vs f64 数値分岐(丸め誤差)評価スクリプト
 ├── Cargo.toml             # Rust依存パッケージ (wasm-bindgen, js-sys, rand, pyo3)
 └── .github/workflows/
     └── deploy.yml         # CI/CD: 毎コミット時にビルドしGitHub Pagesへ自動デプロイ
@@ -129,14 +139,15 @@ WebGPU APIをサポートした最新のブラウザ（Google Chrome, Microsoft 
 
 1. **maturinのインストールとネイティブモジュールのビルド**
    ```bash
-   uv add maturin numpy
+   uv add maturin matplotlib numpy
    uv run maturin develop
    ```
-2. **探索スクリプトの実行**
+2. **探索・評価スクリプトの実行**
    ```bash
    uv run explore.py
+   uv run evaluate_divergence.py
    ```
-   > 実行結果例: `Optimal Chaos Edge coupling strength found: k = 0.410`
+   > 実行後はカオス・エッジの探索結果や、累積誤差の増幅を可視化したプロット画像が生成されます。
 
 ---
 
